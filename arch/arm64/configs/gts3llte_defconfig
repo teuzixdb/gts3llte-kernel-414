@@ -1,9 +1,9 @@
-# gts3llte_defconfig para kernel 4.14 (port do 3.18 awesometic/jaydens)
+﻿# gts3llte_defconfig para kernel 4.14 (port do 3.18 awesometic/jaydens)
 # Samsung Galaxy Tab S3 LTE (SM-T825) - Snapdragon 820 (msm8996)
 # Baseado no defconfig do jaydens-3.18, adaptado para 4.14 CAF
 #
-# v2: Removidas configs Samsung-específicas que podem não existir no 4.14 CAF
-#     para facilitar o primeiro build. Serão adicionadas progressivamente.
+# v2: Removidas configs Samsung-especÃ­ficas que podem nÃ£o existir no 4.14 CAF
+#     para facilitar o primeiro build. SerÃ£o adicionadas progressivamente.
 
 # ---- Arquitetura e Platform ----
 CONFIG_ARM64=y
@@ -162,3 +162,7 @@ CONFIG_IKCONFIG_PROC=y
 CONFIG_DEBUG_FS=y
 CONFIG_MODULES=y
 CONFIG_MODULE_UNLOAD=y
+# devfreq (required by MMC clock scaling)
+CONFIG_PM_DEVFREQ=y
+CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND=y
+CONFIG_DEVFREQ_GOV_PERFORMANCE=y
