@@ -3,16 +3,11 @@ name: Build gts3llte Kernel 4.14
 on:
   push:
     branches: [ gts3llte-4.14-port ]
-  pull_request:
-    branches: [ gts3llte-4.14-port ]
   workflow_dispatch:
 
 env:
   ARCH: arm64
   CROSS_COMPILE: aarch64-linux-gnu-
-  CLANG_VERSION: "17"
-  CAF_KERNEL_REPO: https://github.com/android-linux-stable/msm-4.14.git
-  CAF_KERNEL_BRANCH: master
 
 jobs:
   build:
@@ -21,76 +16,44 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout patch/config repo
+      - name: Checkout patch repo
         uses: actions/checkout@v4
         with:
-          path: gts3llte-patches
+          path: patches
           fetch-depth: 1
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ca-certificates cpio flex \
-            git kmod libelf-dev libssl-dev lld llvm \
-            make python3 rsync zip \
-            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
-            binutils-aarch64-linux-gnu \
-            clang-${CLANG_VERSION} llvm-${CLANG_VERSION} lld-${CLANG_VERSION} \
-            ccache
-          sudo ln -sf /usr/bin/clang-${CLANG_VERSION} /usr/bin/clang
-          sudo ln -sf /usr/bin/llvm-ar-${CLANG_VERSION} /usr/bin/llvm-ar
-          sudo ln -sf /usr/bin/llvm-nm-${CLANG_VERSION} /usr/bin/llvm-nm
-          sudo ln -sf /usr/bin/llvm-objcopy-${CLANG_VERSION} /usr/bin/llvm-objcopy
-          sudo ln -sf /usr/bin/llvm-objdump-${CLANG_VERSION} /usr/bin/llvm-objdump
-          sudo ln -sf /usr/bin/llvm-strip-${CLANG_VERSION} /usr/bin/llvm-strip
-          sudo ln -sf /usr/bin/ld.lld-${CLANG_VERSION} /usr/bin/ld.lld
-          clang --version
+            bc bison build-essential ca-certificates flex \
+            git libelf-dev libssl-dev make \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            clang-17 llvm-17 lld-17 ccache
+          sudo ln -sf /usr/bin/clang-17 /usr/bin/clang
+          sudo ln -sf /usr/bin/llvm-ar-17 /usr/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-nm-17 /usr/bin/llvm-nm
+          sudo ln -sf /usr/bin/llvm-objcopy-17 /usr/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-objdump-17 /usr/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-strip-17 /usr/bin/llvm-strip
+          sudo ln -sf /usr/bin/ld.lld-17 /usr/bin/ld.lld
 
-      - name: Clone CAF msm-4.14 base kernel
+      - name: Clone CAF msm-4.14 base
         run: |
-          echo "Cloning android-linux-stable/msm-4.14 (kernel 4.14.214)..."
           git clone --depth=1 \
-            --branch ${CAF_KERNEL_BRANCH} \
-            ${CAF_KERNEL_REPO} \
+            https://github.com/android-linux-stable/msm-4.14.git \
             kernel-src
           head -5 kernel-src/Makefile
 
-      - name: Apply gts3llte patches and configs
+      - name: Apply patches
         run: |
           cd kernel-src
-
-          echo "=== Copying gts3llte_defconfig ==="
-          mkdir -p arch/arm64/configs
-          cp ../gts3llte-patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
-
-          echo "=== Copying Samsung DTS ==="
+          cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
           mkdir -p arch/arm64/boot/dts/samsung
-          cp -r ../gts3llte-patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
-
-          echo "=== Copying compat headers ==="
-          cp ../gts3llte-patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
-
-          echo "=== Adding samsung to DTS Makefile ==="
-          if ! grep -q "samsung" arch/arm64/boot/dts/Makefile; then
+          cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
+          cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
+          grep -q "samsung" arch/arm64/boot/dts/Makefile || \
             sed -i 's/dts-dirs += qcom/dts-dirs += qcom\ndts-dirs += samsung/' arch/arm64/boot/dts/Makefile
-          fi
-
-          echo "=== DTS samsung Makefile ==="
-          if [ -f "../gts3llte-patches/arch/arm64/boot/dts/samsung/Makefile" ]; then
-            cp ../gts3llte-patches/arch/arm64/boot/dts/samsung/Makefile arch/arm64/boot/dts/samsung/
-          else
-            # Criar Makefile mínimo para o build
-            cat > arch/arm64/boot/dts/samsung/Makefile << 'EOF'
-ifeq ($(filter y,$(CONFIG_SEC_GTS3LLTE_PROJECT)),y)
-dtb-y = msm8996-sec-gts3llte-eur-kor-r05.dtb
-endif
-EOF
-          fi
-
-          echo "Patches aplicados com sucesso"
-          ls arch/arm64/configs/gts3llte_defconfig
-          ls arch/arm64/boot/dts/samsung/ | head -10
 
       - name: Setup ccache
         uses: actions/cache@v4
@@ -102,54 +65,40 @@ EOF
       - name: Generate .config
         working-directory: kernel-src
         run: |
-          make O=out \
-            ARCH=${ARCH} \
-            CROSS_COMPILE=${CROSS_COMPILE} \
-            CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
+          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+            CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             gts3llte_defconfig
-          echo "=== Key configs ==="
-          grep -E "^CONFIG_(ARCH_MSM8996|FB_MSM|MSM_KGSL|ANDROID_BINDER|SCHED_WALT|PREEMPT|HZ)=" out/.config || true
+          grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|PREEMPT|HZ)=" out/.config || true
 
-      - name: Build kernel Image
+      - name: Build kernel
         working-directory: kernel-src
         run: |
-          make -j$(nproc) O=out \
-            ARCH=${ARCH} \
-            CROSS_COMPILE=${CROSS_COMPILE} \
-            CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
+          make -j$(nproc) O=out ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
+            LD=ld.lld AR=llvm-ar NM=llvm-nm \
+            OBJCOPY=llvm-objcopy STRIP=llvm-strip \
             Image.gz 2>&1 | tee ../build.log
           echo "Build exit: ${PIPESTATUS[0]}"
 
-      - name: Show errors if build failed
+      - name: Show errors
         if: failure()
         run: |
-          echo "=== ERRORS ==="
-          grep -E "error:|undefined reference|fatal error" build.log | head -60 || true
-          echo "=== LAST 80 LINES ==="
-          tail -80 build.log
+          grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
+          tail -100 build.log
 
-      - name: Upload kernel image
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gts3llte-kernel-414-${{ github.run_number }}
-          path: |
-            kernel-src/out/arch/arm64/boot/Image.gz
-            build.log
-          retention-days: 30
-
-      - name: Upload build log (always)
+      - name: Upload log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.run_number }}
           path: build.log
           retention-days: 7
+
+      - name: Upload kernel
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ github.run_number }}
+          path: kernel-src/out/arch/arm64/boot/Image.gz
+          retention-days: 30
