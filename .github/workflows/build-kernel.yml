@@ -20,9 +20,7 @@ jobs:
 
       - name: Install LLVM + cross toolchain
         run: |
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 17 || \
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 16 || \
-          true
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 17 || true
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ca-certificates flex \
             git libelf-dev libssl-dev make \
@@ -41,15 +39,22 @@ jobs:
       - name: Apply patches
         run: |
           cd kernel-src
+
           cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
           mkdir -p arch/arm64/boot/dts/samsung
           cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
           cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
+
+          # Fix: sched/core.c NOHZ_BALANCE_KICK guard
+          if [ -f ../patches/kernel/sched/core.c ]; then
+            cp ../patches/kernel/sched/core.c kernel/sched/core.c
+            echo "Applied sched/core.c fix"
+          fi
+
           grep -q "samsung" arch/arm64/boot/dts/Makefile || \
             sed -i 's/dts-dirs += qcom/dts-dirs += qcom\ndts-dirs += samsung/' arch/arm64/boot/dts/Makefile
-          echo "Applied patches OK"
-          ls arch/arm64/configs/gts3llte_defconfig
-          ls arch/arm64/boot/dts/samsung/ | head -5
+
+          echo "Patches OK"
 
       - name: Setup ccache
         uses: actions/cache@v4
@@ -64,7 +69,7 @@ jobs:
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             gts3llte_defconfig 2>&1 | tee ../config.log
-          grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|PREEMPT|HZ)=" out/.config || true
+          grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|NO_HZ|PREEMPT|HZ)=" out/.config || true
 
       - name: Build kernel
         working-directory: kernel-src
@@ -74,22 +79,17 @@ jobs:
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             LD=ld.lld AR=llvm-ar NM=llvm-nm \
             OBJCOPY=llvm-objcopy STRIP=llvm-strip \
-            Image.gz 2>&1 | tee ../build.log || true
+            Image.gz 2>&1 | tee ../build.log
           echo "Build exit: ${PIPESTATUS[0]}"
+          ls -lh out/arch/arm64/boot/Image.gz 2>/dev/null || echo "Image.gz NOT found"
 
-      - name: Show build result
+      - name: Show errors
         if: always()
         run: |
-          if [ -f build.log ]; then
-            echo "=== ERRORS ==="
-            grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
-            echo "=== LAST 100 LINES ==="
-            tail -100 build.log
-          fi
-          if [ -f config.log ]; then
-            echo "=== CONFIG WARNINGS ==="
-            grep -i "warning\|error\|unknown" config.log | head -30 || true
-          fi
+          echo "=== ERRORS ==="
+          grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
+          echo "=== LAST 60 LINES ==="
+          tail -60 build.log || true
 
       - name: Upload logs
         if: always()
@@ -108,4 +108,5 @@ jobs:
         with:
           name: kernel-${{ github.run_number }}
           path: kernel-src/out/arch/arm64/boot/Image.gz
+          if-no-files-found: ignore
           retention-days: 30
