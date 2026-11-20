@@ -1,4 +1,4 @@
-    name: Build gts3llte Kernel 4.14
+  name: Build gts3llte Kernel 4.14
 
     on:
       push:
@@ -40,13 +40,13 @@
             run: |
               cd kernel-src
 
-              # defconfig + DTS
+              # defconfig
               cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
+
+              # DTS samsung + Makefile com samsung entry
               mkdir -p arch/arm64/boot/dts/samsung
               cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
-              grep -q "samsung" arch/arm64/boot/dts/Makefile || \
-                sed -i 's/dts-dirs += qcom/dts-dirs += qcom\ndts-dirs += samsung/'
-                arch/arm64/boot/dts/Makefile
+              cp ../patches/arch/arm64/boot/dts/Makefile arch/arm64/boot/dts/Makefile
 
               # compat headers
               cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
