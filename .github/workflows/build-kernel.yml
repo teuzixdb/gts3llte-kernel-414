@@ -40,21 +40,29 @@ jobs:
         run: |
           cd kernel-src
 
+          # defconfig + DTS
           cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
           mkdir -p arch/arm64/boot/dts/samsung
           cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
-          cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
-
-          # Fix: sched/core.c NOHZ_BALANCE_KICK guard
-          if [ -f ../patches/kernel/sched/core.c ]; then
-            cp ../patches/kernel/sched/core.c kernel/sched/core.c
-            echo "Applied sched/core.c fix"
-          fi
-
           grep -q "samsung" arch/arm64/boot/dts/Makefile || \
             sed -i 's/dts-dirs += qcom/dts-dirs += qcom\ndts-dirs += samsung/' arch/arm64/boot/dts/Makefile
 
-          echo "Patches OK"
+          # compat headers
+          cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
+
+          # kernel/sched/core.c - fix NOHZ_BALANCE_KICK guard
+          [ -f ../patches/kernel/sched/core.c ] && \
+            cp ../patches/kernel/sched/core.c kernel/sched/core.c && \
+            echo "Applied kernel/sched/core.c"
+
+          # drivers fixes - copy all patched driver files
+          if [ -d ../patches/drivers ]; then
+            cp -r ../patches/drivers/. drivers/
+            echo "Applied drivers/ patches:"
+            find ../patches/drivers -name "*.c" -o -name "*.h" | sed 's|../patches/||'
+          fi
+
+          echo "All patches applied OK"
 
       - name: Setup ccache
         uses: actions/cache@v4
@@ -69,7 +77,7 @@ jobs:
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             gts3llte_defconfig 2>&1 | tee ../config.log
-          grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|NO_HZ|PREEMPT|HZ)=" out/.config || true
+          grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|NO_HZ|USB_DWC3|PM_DEVFREQ|PREEMPT|HZ)=" out/.config || true
 
       - name: Build kernel
         working-directory: kernel-src
@@ -87,7 +95,7 @@ jobs:
         if: always()
         run: |
           echo "=== ERRORS ==="
-          grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
+          grep -E "error:|fatal error:" build.log | grep -v "^Binary\|grep\|head" | head -60 || true
           echo "=== LAST 60 LINES ==="
           tail -60 build.log || true
 
