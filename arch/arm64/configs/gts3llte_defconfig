@@ -1,4 +1,4 @@
-﻿# gts3llte_defconfig para kernel 4.14 (port do 3.18 awesometic/jaydens)
+# gts3llte_defconfig para kernel 4.14 (port do 3.18 awesometic/jaydens)
 # Samsung Galaxy Tab S3 LTE (SM-T825) - Snapdragon 820 (msm8996)
 # Baseado no defconfig do jaydens-3.18, adaptado para 4.14 CAF
 #
@@ -102,6 +102,8 @@ CONFIG_USB=y
 CONFIG_USB_GADGET=y
 CONFIG_USB_DWC3=y
 CONFIG_USB_DWC3_MSM=y
+CONFIG_USB_DWC3_GADGET=y
+CONFIG_USB_DWC3_DUAL_ROLE=y
 
 # ---- eMMC ----
 CONFIG_MMC=y
