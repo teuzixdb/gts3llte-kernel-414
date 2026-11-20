@@ -1,4 +1,4 @@
-  name: Build gts3llte Kernel 4.14
+name: Build gts3llte Kernel 4.14
 
     on:
       push:
@@ -39,30 +39,17 @@
           - name: Apply patches
             run: |
               cd kernel-src
-
-              # defconfig
               cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
-
-              # DTS samsung + Makefile com samsung entry
               mkdir -p arch/arm64/boot/dts/samsung
               cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
               cp ../patches/arch/arm64/boot/dts/Makefile arch/arm64/boot/dts/Makefile
-
-              # compat headers
               cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
-
-              # kernel/sched/core.c - fix NOHZ_BALANCE_KICK guard
-              [ -f ../patches/kernel/sched/core.c ] && \
-                cp ../patches/kernel/sched/core.c kernel/sched/core.c && \
-                echo "Applied kernel/sched/core.c"
-
-              # drivers fixes - copy all patched driver files
+              [ -f ../patches/kernel/sched/core.c ] && cp ../patches/kernel/sched/core.c
+              kernel/sched/core.c && echo "Applied sched/core.c"
               if [ -d ../patches/drivers ]; then
                 cp -r ../patches/drivers/. drivers/
-                echo "Applied drivers/ patches:"
-                find ../patches/drivers -name "*.c" -o -name "*.h" | sed 's|../patches/||'
+                echo "Applied drivers patches"
               fi
-
               echo "All patches applied OK"
 
           - name: Setup ccache
@@ -75,12 +62,9 @@
           - name: Generate .config
             working-directory: kernel-src
             run: |
-              make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
-                CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
-                gts3llte_defconfig 2>&1 | tee ../config.log
-              grep -E
-              "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|NO_HZ|USB_DWC3|PM_DEVFREQ|PREEMPT
-              |HZ)=" out/.config || true
+              make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang
+              CLANG_TRIPLE=aarch64-linux-gnu- gts3llte_defconfig 2>&1 | tee ../config.log
+              grep -E "^CONFIG_(USB_DWC3|PM_DEVFREQ|PREEMPT|HZ)=" out/.config || true
 
           - name: Build kernel
             working-directory: kernel-src
