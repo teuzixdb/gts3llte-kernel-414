@@ -5,10 +5,6 @@ on:
     branches: [ gts3llte-4.14-port ]
   workflow_dispatch:
 
-env:
-  ARCH: arm64
-  CROSS_COMPILE: aarch64-linux-gnu-
-
 jobs:
   build:
     name: Build Kernel 4.14 (gts3llte SM-T825)
@@ -22,21 +18,18 @@ jobs:
           path: patches
           fetch-depth: 1
 
-      - name: Install dependencies
+      - name: Install LLVM + cross toolchain
         run: |
-          sudo apt-get update -qq
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 17 || \
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 16 || \
+          true
           sudo apt-get install -y --no-install-recommends \
             bc bison build-essential ca-certificates flex \
             git libelf-dev libssl-dev make \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            clang-17 llvm-17 lld-17 ccache
-          sudo ln -sf /usr/bin/clang-17 /usr/bin/clang
-          sudo ln -sf /usr/bin/llvm-ar-17 /usr/bin/llvm-ar
-          sudo ln -sf /usr/bin/llvm-nm-17 /usr/bin/llvm-nm
-          sudo ln -sf /usr/bin/llvm-objcopy-17 /usr/bin/llvm-objcopy
-          sudo ln -sf /usr/bin/llvm-objdump-17 /usr/bin/llvm-objdump
-          sudo ln -sf /usr/bin/llvm-strip-17 /usr/bin/llvm-strip
-          sudo ln -sf /usr/bin/ld.lld-17 /usr/bin/ld.lld
+            clang llvm lld ccache
+          clang --version
+          aarch64-linux-gnu-gcc --version
 
       - name: Clone CAF msm-4.14 base
         run: |
@@ -54,6 +47,9 @@ jobs:
           cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
           grep -q "samsung" arch/arm64/boot/dts/Makefile || \
             sed -i 's/dts-dirs += qcom/dts-dirs += qcom\ndts-dirs += samsung/' arch/arm64/boot/dts/Makefile
+          echo "Applied patches OK"
+          ls arch/arm64/configs/gts3llte_defconfig
+          ls arch/arm64/boot/dts/samsung/ | head -5
 
       - name: Setup ccache
         uses: actions/cache@v4
@@ -67,7 +63,7 @@ jobs:
         run: |
           make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
-            gts3llte_defconfig
+            gts3llte_defconfig 2>&1 | tee ../config.log
           grep -E "^CONFIG_(ARCH_MSM8996|MSM_KGSL|SCHED_WALT|PREEMPT|HZ)=" out/.config || true
 
       - name: Build kernel
@@ -78,21 +74,32 @@ jobs:
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             LD=ld.lld AR=llvm-ar NM=llvm-nm \
             OBJCOPY=llvm-objcopy STRIP=llvm-strip \
-            Image.gz 2>&1 | tee ../build.log
+            Image.gz 2>&1 | tee ../build.log || true
           echo "Build exit: ${PIPESTATUS[0]}"
 
-      - name: Show errors
-        if: failure()
+      - name: Show build result
+        if: always()
         run: |
-          grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
-          tail -100 build.log
+          if [ -f build.log ]; then
+            echo "=== ERRORS ==="
+            grep -E "error:|undefined reference|fatal error" build.log | head -80 || true
+            echo "=== LAST 100 LINES ==="
+            tail -100 build.log
+          fi
+          if [ -f config.log ]; then
+            echo "=== CONFIG WARNINGS ==="
+            grep -i "warning\|error\|unknown" config.log | head -30 || true
+          fi
 
-      - name: Upload log
+      - name: Upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.run_number }}
-          path: build.log
+          path: |
+            build.log
+            config.log
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Upload kernel
