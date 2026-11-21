@@ -170,3 +170,5 @@ CONFIG_DEVFREQ_GOV_PERFORMANCE=y
 # Samsung project selection
 CONFIG_SEC_GTS3LLTE_PROJECT=y
 CONFIG_MACH_GTS3LLTE_XX=y
+# Build all DTBs and append to Image.gz-dtb
+CONFIG_OF_ALL_DTBS=y
