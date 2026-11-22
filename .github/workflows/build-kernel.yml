@@ -57,6 +57,11 @@ jobs:
             cp -r ../patches/arch/arm64/kernel/. arch/arm64/kernel/
             echo "Applied arch/arm64/kernel patches"
           fi
+          if [ -d ../patches/tools ]; then
+            mkdir -p tools
+            cp -r ../patches/tools/. tools/
+            echo "Copied tools"
+          fi
           ln -sf ../drivers arch/drivers
           echo "All patches applied OK"
 
@@ -83,7 +88,7 @@ jobs:
             OBJCOPY=llvm-objcopy STRIP=llvm-strip \
             Image.gz dtbs 2>&1 | tee ../build.log
           test -f out/arch/arm64/boot/Image.gz || (echo "Image.gz was not generated!" && exit 1)
-          python3 ../tools/assemble_image_dtb.py
+          python3 tools/assemble_image_dtb.py || python3 ../patches/tools/assemble_image_dtb.py
           ls -lh out/arch/arm64/boot/Image.gz-dtb
 
       - name: Show errors
