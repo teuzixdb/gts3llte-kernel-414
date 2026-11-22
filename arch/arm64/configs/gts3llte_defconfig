@@ -72,7 +72,9 @@ CONFIG_ANDROID_BINDER_DEVICES="binder,hwbinder,vndbinder"
 CONFIG_ANDROID_BINDERFS=y
 CONFIG_ASHMEM=y
 
-# ---- ION Memory Manager ----
+# ---- ION Memory Manager & CMA ----
+CONFIG_CMA=y
+CONFIG_DMA_CMA=y
 CONFIG_STAGING=y
 CONFIG_ION=y
 CONFIG_ION_MSM=y
