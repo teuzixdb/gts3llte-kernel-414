@@ -57,6 +57,11 @@ jobs:
             cp -r ../patches/arch/arm64/kernel/. arch/arm64/kernel/
             echo "Applied arch/arm64/kernel patches"
           fi
+          if [ -d ../patches/arch/arm64/mm ]; then
+            mkdir -p arch/arm64/mm
+            cp -r ../patches/arch/arm64/mm/. arch/arm64/mm/
+            echo "Applied arch/arm64/mm patches"
+          fi
           if [ -d ../patches/tools ]; then
             mkdir -p tools
             cp -r ../patches/tools/. tools/
