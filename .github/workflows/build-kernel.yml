@@ -52,6 +52,7 @@ jobs:
             cp -r ../patches/drivers/. drivers/
             echo "Applied drivers patches"
           fi
+          ln -sf ../drivers arch/drivers
           echo "All patches applied OK"
 
       - name: Setup ccache
