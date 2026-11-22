@@ -8,10 +8,10 @@ if not img_path.exists():
     sys.exit(f"Image.gz not found at {img_path}")
 
 img = img_path.read_bytes()
-pad = (4 - (len(img) % 4)) % 4
-out = bytearray(img + b"\x00" * pad)
+# ABOOT expects DTB #0 immediately following GZIP ISIZE with zero padding!
+out = bytearray(img)
 
-print(f"Base Image.gz: {len(img)} bytes, pad={pad} bytes -> DTB start offset={len(out)} (aligned={len(out) % 4 == 0})")
+print(f"Base Image.gz: {len(img)} bytes (zero padding) -> DTB start offset={len(out)}")
 
 dtb_dir = out_dir / "dts/samsung"
 for name in ["r04", "r02", "r00", "r05"]:

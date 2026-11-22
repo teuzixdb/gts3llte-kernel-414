@@ -43,9 +43,12 @@
 			reg = <0x0 0x85000000 0x0 0x00400000>;
 		};
 
-		ramoops_mem: ramoops_mem@84B00000 {
-			label = "ramoops_mem";
-			reg = <0 0x84B00000 0 0x100000>;
+		ramoops: ramoops@84b00000 {
+			compatible = "ramoops";
+			reg = <0x0 0x84b00000 0x0 0x100000>;
+			record-size = <0x40000>;
+			console-size = <0x40000>;
+			pmsg-size = <0x40000>;
 		};
 		
 		ss_plog@84700000 {
@@ -84,17 +87,6 @@
 			reg = <0 0xFEC00000 0 0x1400000>;
 			label = "qseecom_mem";
 		};
-	};
-
-	ramoops {
-		compatible = "ramoops";
-		status = "ok";
-		memory-region = <&ramoops_mem>;
-		record-size = <0x40000>;
-		console-size = <0x40000>;
-		ftrace-size = <0x40000>;
-		pmsg-size = <0x40000>;
-	};
 };
 
 &cont_splash_mem {
