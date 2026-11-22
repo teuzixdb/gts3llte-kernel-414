@@ -45,7 +45,8 @@ jobs:
           mkdir -p arch/arm64/boot/dts/qcom
           cp -r ../patches/arch/arm64/boot/dts/qcom/. arch/arm64/boot/dts/qcom/
           cp ../patches/arch/arm64/boot/dts/Makefile arch/arm64/boot/dts/Makefile
-          cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
+          mkdir -p include
+          cp -r ../patches/include/. include/
           [ -f ../patches/kernel/sched/core.c ] && cp ../patches/kernel/sched/core.c kernel/sched/core.c && echo "Applied sched/core.c"
           if [ -d ../patches/drivers ]; then
             cp -r ../patches/drivers/. drivers/
@@ -75,8 +76,8 @@ jobs:
             LD=ld.lld AR=llvm-ar NM=llvm-nm \
             OBJCOPY=llvm-objcopy STRIP=llvm-strip \
             Image.gz-dtb 2>&1 | tee ../build.log
-          echo "Build exit: ${PIPESTATUS[0]}"
-          ls -lh out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || echo "Image.gz-dtb NOT found"
+          test -f out/arch/arm64/boot/Image.gz-dtb || (echo "Image.gz-dtb was not generated!" && exit 1)
+          ls -lh out/arch/arm64/boot/Image.gz-dtb
 
       - name: Show errors
         if: always()
