@@ -1,9 +1,18 @@
-﻿name: Build gts3llte Kernel 4.14
+name: Build gts3llte Kernel 4.14
 
 on:
   push:
     branches: [ gts3llte-4.14-port ]
+  pull_request:
+    branches: [ gts3llte-4.14-port ]
   workflow_dispatch:
+
+env:
+  ARCH: arm64
+  CROSS_COMPILE: aarch64-linux-gnu-
+  CLANG_VERSION: "17"
+  CAF_KERNEL_REPO: https://github.com/android-linux-stable/msm-4.14.git
+  CAF_KERNEL_BRANCH: master
 
 jobs:
   build:
@@ -12,44 +21,84 @@ jobs:
     timeout-minutes: 120
 
     steps:
-      - name: Checkout patch repo
+      - name: Checkout patch/config repo
         uses: actions/checkout@v4
         with:
-          path: patches
+          path: gts3llte-patches
           fetch-depth: 1
 
-      - name: Install LLVM + cross toolchain
+      - name: Install build dependencies
         run: |
-          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 17 || true
+          sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
-            bc bison build-essential ca-certificates flex \
-            git libelf-dev libssl-dev make \
-            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
-            clang llvm lld ccache
+            bc bison build-essential ca-certificates cpio flex \
+            git kmod libelf-dev libssl-dev lld llvm \
+            make python3 rsync zip \
+            gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+            binutils-aarch64-linux-gnu \
+            clang-${CLANG_VERSION} llvm-${CLANG_VERSION} lld-${CLANG_VERSION} \
+            ccache
+          sudo ln -sf /usr/bin/clang-${CLANG_VERSION} /usr/bin/clang
+          sudo ln -sf /usr/bin/llvm-ar-${CLANG_VERSION} /usr/bin/llvm-ar
+          sudo ln -sf /usr/bin/llvm-nm-${CLANG_VERSION} /usr/bin/llvm-nm
+          sudo ln -sf /usr/bin/llvm-objcopy-${CLANG_VERSION} /usr/bin/llvm-objcopy
+          sudo ln -sf /usr/bin/llvm-objdump-${CLANG_VERSION} /usr/bin/llvm-objdump
+          sudo ln -sf /usr/bin/llvm-strip-${CLANG_VERSION} /usr/bin/llvm-strip
+          sudo ln -sf /usr/bin/ld.lld-${CLANG_VERSION} /usr/bin/ld.lld
           clang --version
-          aarch64-linux-gnu-gcc --version
 
-      - name: Clone CAF msm-4.14 base
+      - name: Clone CAF msm-4.14 base kernel
         run: |
+          echo "Cloning android-linux-stable/msm-4.14 (kernel 4.14.214)..."
           git clone --depth=1 \
-            https://github.com/android-linux-stable/msm-4.14.git \
+            --branch ${CAF_KERNEL_BRANCH} \
+            ${CAF_KERNEL_REPO} \
             kernel-src
           head -5 kernel-src/Makefile
 
-      - name: Apply patches
+      - name: Apply gts3llte patches and configs
         run: |
           cd kernel-src
-          cp ../patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
+
+          echo "=== Copying gts3llte_defconfig ==="
+          mkdir -p arch/arm64/configs
+          cp ../gts3llte-patches/arch/arm64/configs/gts3llte_defconfig arch/arm64/configs/
+
+          echo "=== Copying Samsung DTS ==="
           mkdir -p arch/arm64/boot/dts/samsung
-          cp -r ../patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
-          cp ../patches/arch/arm64/boot/dts/Makefile arch/arm64/boot/dts/Makefile
-          cp ../patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
-          [ -f ../patches/kernel/sched/core.c ] && cp ../patches/kernel/sched/core.c kernel/sched/core.c && echo "Applied sched/core.c"
-          if [ -d ../patches/drivers ]; then
-            cp -r ../patches/drivers/. drivers/
-            echo "Applied drivers patches"
+          cp -r ../gts3llte-patches/arch/arm64/boot/dts/samsung/. arch/arm64/boot/dts/samsung/
+
+          echo "=== Copying QCOM base DTS ==="
+          mkdir -p arch/arm64/boot/dts/qcom
+          cp -r ../gts3llte-patches/arch/arm64/boot/dts/qcom/. arch/arm64/boot/dts/qcom/
+
+          echo "=== Copying compat headers ==="
+          cp ../gts3llte-patches/include/linux/dma-attrs.h include/linux/ 2>/dev/null || true
+
+          echo "=== Copying drivers & kernel patches ==="
+          [ -f ../gts3llte-patches/kernel/sched/core.c ] && cp ../gts3llte-patches/kernel/sched/core.c kernel/sched/core.c || true
+          if [ -d ../gts3llte-patches/drivers ]; then
+            cp -r ../gts3llte-patches/drivers/. drivers/
           fi
-          echo "All patches applied OK"
+
+          echo "=== Adding samsung to DTS Makefile ==="
+          cp ../gts3llte-patches/arch/arm64/boot/dts/Makefile arch/arm64/boot/dts/Makefile
+
+          echo "=== DTS samsung Makefile ==="
+          if [ -f "../gts3llte-patches/arch/arm64/boot/dts/samsung/Makefile" ]; then
+            cp ../gts3llte-patches/arch/arm64/boot/dts/samsung/Makefile arch/arm64/boot/dts/samsung/
+          else
+            # Criar Makefile mínimo para o build
+            cat > arch/arm64/boot/dts/samsung/Makefile << 'EOF'
+ifeq ($(filter y,$(CONFIG_SEC_GTS3LLTE_PROJECT)),y)
+dtb-y = msm8996-sec-gts3llte-eur-kor-r05.dtb
+endif
+EOF
+          fi
+
+          echo "Patches aplicados com sucesso"
+          ls arch/arm64/configs/gts3llte_defconfig
+          ls arch/arm64/boot/dts/samsung/ | head -10
 
       - name: Setup ccache
         uses: actions/cache@v4
@@ -61,45 +110,54 @@ jobs:
       - name: Generate .config
         working-directory: kernel-src
         run: |
-          make O=out ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC=clang CLANG_TRIPLE=aarch64-linux-gnu- gts3llte_defconfig 2>&1 | tee ../config.log
-          grep -E "^CONFIG_(USB_DWC3|PM_DEVFREQ|PREEMPT|HZ)=" out/.config || true
+          make O=out \
+            ARCH=${ARCH} \
+            CROSS_COMPILE=${CROSS_COMPILE} \
+            CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            gts3llte_defconfig
+          echo "=== Key configs ==="
+          grep -E "^CONFIG_(ARCH_MSM8996|FB_MSM|MSM_KGSL|ANDROID_BINDER|SCHED_WALT|PREEMPT|HZ)=" out/.config || true
 
-      - name: Build kernel
+      - name: Build kernel Image
         working-directory: kernel-src
         run: |
-          make -j$(nproc) O=out ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
-            LD=ld.lld AR=llvm-ar NM=llvm-nm \
-            OBJCOPY=llvm-objcopy STRIP=llvm-strip \
+          make -j$(nproc) O=out \
+            ARCH=${ARCH} \
+            CROSS_COMPILE=${CROSS_COMPILE} \
+            CC=clang \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
             Image.gz-dtb 2>&1 | tee ../build.log
           echo "Build exit: ${PIPESTATUS[0]}"
-          ls -lh out/arch/arm64/boot/Image.gz-dtb 2>/dev/null || echo "Image.gz NOT found"
 
-      - name: Show errors
-        if: always()
+      - name: Show errors if build failed
+        if: failure()
         run: |
           echo "=== ERRORS ==="
-          grep -E "error:|fatal error:" build.log | grep -v "^Binary\|grep\|head" | head -60 || true
-          echo "=== LAST 60 LINES ==="
-          tail -60 build.log || true
+          grep -E "error:|undefined reference|fatal error" build.log | head -60 || true
+          echo "=== LAST 80 LINES ==="
+          tail -80 build.log
 
-      - name: Upload logs
+      - name: Upload kernel image
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gts3llte-kernel-414-${{ github.run_number }}
+          path: |
+            kernel-src/out/arch/arm64/boot/Image.gz-dtb
+            build.log
+          retention-days: 30
+
+      - name: Upload build log (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log-${{ github.run_number }}
-          path: |
-            build.log
-            config.log
-          if-no-files-found: ignore
+          path: build.log
           retention-days: 7
-
-      - name: Upload kernel
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-${{ github.run_number }}
-          path: kernel-src/out/arch/arm64/boot/Image.gz-dtb
-          if-no-files-found: ignore
-          retention-days: 30

@@ -1,8 +1,5 @@
 ﻿# SPDX-License-Identifier: GPL-2.0
-# gts3llte (SM-T825) - EUR/KOR variant (ZTO sales code)
-dtb-y += msm8996-sec-gts3llte-eur-kor-r00.dtb
-dtb-y += msm8996-sec-gts3llte-eur-kor-r02.dtb
-dtb-y += msm8996-sec-gts3llte-eur-kor-r04.dtb
+# gts3llte (SM-T825) - Target hardware revision 05
 dtb-y += msm8996-sec-gts3llte-eur-kor-r05.dtb
 
 ifeq ($(CONFIG_ARM64),y)
