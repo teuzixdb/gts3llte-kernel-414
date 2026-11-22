@@ -113,99 +113,150 @@ pe_header:
 	 *  x28        __create_page_tables()     callee preserved temp register
 	 *  x19/x20    __primary_switch()         callee preserved temp registers
 	 */
-/*
- * Early Diagnostic Checkpoint Macro
- * Writes 64-bit ASCII chunks to 0x84B40000 (console-ramoops buffer).
- */
-	.macro	chkpt_log, off, str1, str2, str3, str4
-	ldr	x9, =(0x84B40000 + \off)
-	ldr	x10, =\str1
-	str	x10, [x9]
-	.ifnb \str2
-	ldr	x10, =\str2
-	str	x10, [x9, #8]
-	.endif
-	.ifnb \str3
-	ldr	x10, =\str3
-	str	x10, [x9, #16]
-	.endif
-	.ifnb \str4
-	ldr	x10, =\str4
-	str	x10, [x9, #24]
-	.endif
-	dmb	sy
-	dc	civac, x9
-	dmb	sy
-	.endm
-
 ENTRY(stext)
-	/* Checkpoint 01: stext entered */
-	chkpt_log 0x00, 0x34312E34203D3D3D, 0x4220594C52414520, 0x0A474F4C20544F4F /* "=== 4.14 EARLY BOOT LOG\n" */
-	chkpt_log 0x20, 0x7473203A31305043, 0x65746E6520747865, 0x000000000A646572 /* "CP01: stext entered\n" */
-
-	/* Save raw boot registers at offset 0x40 */
-	ldr	x9, =0x84B40040
-	stp	x0, x1, [x9]
-	stp	x2, x3, [x9, #16]
-	mrs	x10, CurrentEL
+	// Write Checkpoint 01 directly to 0x84B40000 and 0x85000000
+	ldr	x9, =0x84B40000
+	ldr	x10, =0x34312E34203D3D3D	// "=== 4.14"
+	str	x10, [x9]
+	ldr	x10, =0x4220594C52414520	// " EARLY B"
+	str	x10, [x9, #8]
+	ldr	x10, =0x0A474F4C20544F4F	// "OOT LOG\n"
+	str	x10, [x9, #16]
+	ldr	x10, =0x7473203A31305043	// "CP01: st"
+	str	x10, [x9, #24]
+	ldr	x10, =0x65746E6520747865	// "ext ente"
 	str	x10, [x9, #32]
-	mrs	x10, sctlr_el1
+	ldr	x10, =0x000000000A646572	// "red\n"
 	str	x10, [x9, #40]
-	dmb	sy
-	dc	civac, x9
-	add	x9, x9, #32
-	dc	civac, x9
-	dmb	sy
+
+	// Write raw registers at offset 0x50
+	str	x0, [x9, #0x50]
+	str	x1, [x9, #0x58]
+	str	x2, [x9, #0x60]
+	str	x3, [x9, #0x68]
+	mrs	x10, CurrentEL
+	str	x10, [x9, #0x70]
+	mrs	x10, sctlr_el1
+	str	x10, [x9, #0x78]
+
+	// Dual write to sec_dbg at 0x85000000
+	ldr	x11, =0x85000000
+	ldr	x10, =0x34312E34203D3D3D
+	str	x10, [x11]
+	ldr	x10, =0x4220594C52414520
+	str	x10, [x11, #8]
+	ldr	x10, =0x0A474F4C20544F4F
+	str	x10, [x11, #16]
+	ldr	x10, =0x7473203A31305043
+	str	x10, [x11, #24]
+	str	x0, [x11, #0x50]
+	str	x1, [x11, #0x58]
+	str	x2, [x11, #0x60]
+	str	x3, [x11, #0x68]
+	dsb	sy
 
 	/*
-	 * Verify FDT magic (0xd00dfeed -> 0xedfe0dd0 in memory).
-	 * If x0 is not valid DTB, test x2, then fallback to tags_addr 0x82000000.
+	 * Safe FDT pointer check:
+	 * Must be in RAM (>= 0x80000000) and 4-byte aligned before reading!
 	 */
-	ldr	x12, =0x82000000
-	ldr	w11, =0xedfe0dd0
+	ldr	x14, =0x80000000
+	ldr	w11, =0xedfe0dd0		// DTB magic in memory
 
-	cbz	x0, 2f
+	tst	x0, #0x3
+	b.ne	2f
+	cmp	x0, x14
+	b.lo	2f
 	ldr	w13, [x0]
 	cmp	w13, w11
-	b.eq	4f
+	b.eq	4f				// x0 is valid DTB!
 
-2:	cbz	x2, 3f
+2:	tst	x2, #0x3
+	b.ne	3f
+	cmp	x2, x14
+	b.lo	3f
 	ldr	w13, [x2]
 	cmp	w13, w11
 	b.ne	3f
-	mov	x0, x2
+	mov	x0, x2				// x2 was the DTB!
 	b	4f
 
-3:	ldr	w13, [x12]
-	cmp	w13, w11
-	b.ne	4f
-	mov	x0, x12
+3:	ldr	x0, =0x82000000			// Fallback to tags_addr
 
 4:
-	/* Save resolved DTB pointer at offset 0x70 */
-	ldr	x9, =0x84B40070
-	str	x0, [x9]
-	dmb	sy
-	dc	civac, x9
-	dmb	sy
+	// Record resolved DTB pointer at 0x84B40080
+	str	x0, [x9, #0x80]
+	dsb	sy
 
 	bl	preserve_boot_args
-	chkpt_log 0x80, 0x7270203A32305043, 0x625F657672657365, 0x736772615F746F6F, 0x0000000A6B6F2073 /* "CP02: preserve_boot_args ok\n" */
+
+	// CP02: preserve_boot_args done
+	ldr	x9, =0x84B40090
+	ldr	x10, =0x7270203A32305043	// "CP02: pr"
+	str	x10, [x9]
+	ldr	x10, =0x625F657672657365	// "eserve_b"
+	str	x10, [x9, #8]
+	ldr	x10, =0x736772615F746F6F	// "oot_args"
+	str	x10, [x9, #16]
+	ldr	x10, =0x0000000A6B6F2073	// " ok\n"
+	str	x10, [x9, #24]
+	dsb	sy
 
 	bl	el2_setup			// Drop to EL1, w0=cpu_boot_mode
-	chkpt_log 0xA0, 0x6C65203A33305043, 0x2070757465735F32, 0x00000000000A6B6F /* "CP03: el2_setup ok\n" */
+
+	// CP03: el2_setup done
+	ldr	x9, =0x84B400B0
+	ldr	x10, =0x6C65203A33305043	// "CP03: el"
+	str	x10, [x9]
+	ldr	x10, =0x2070757465735F32	// "2_setup "
+	str	x10, [x9, #8]
+	ldr	x10, =0x00000000000A6B6F	// "ok\n"
+	str	x10, [x9, #16]
+	str	w0, [x9, #24]			// save w0 boot mode
+	dsb	sy
 
 	adrp	x23, __PHYS_OFFSET
 	and	x23, x23, MIN_KIMG_ALIGN - 1	// KASLR offset, defaults to 0
 
 	bl	set_cpu_boot_mode_flag
-	chkpt_log 0xC0, 0x6573203A34305043, 0x6F625F7570635F74, 0x2065646F6D5F746F, 0x00000000000A6B6F /* "CP04: set_cpu_boot_mode ok\n" */
+
+	// CP04: set_cpu_boot_mode done
+	ldr	x9, =0x84B400D0
+	ldr	x10, =0x6573203A34305043	// "CP04: se"
+	str	x10, [x9]
+	ldr	x10, =0x6F625F7570635F74	// "t_cpu_bo"
+	str	x10, [x9, #8]
+	ldr	x10, =0x2065646F6D5F746F	// "ot_mode "
+	str	x10, [x9, #16]
+	ldr	x10, =0x00000000000A6B6F	// "ok\n"
+	str	x10, [x9, #24]
+	dsb	sy
 
 	bl	__create_page_tables
-	chkpt_log 0xE0, 0x6170203A35305043, 0x656C6261745F6567, 0x0000000A6B6F2073 /* "CP05: page_tables ok\n" */
+
+	// CP05: page_tables done
+	ldr	x9, =0x84B400F0
+	ldr	x10, =0x6170203A35305043	// "CP05: pa"
+	str	x10, [x9]
+	ldr	x10, =0x656C6261745F6567	// "ge_table"
+	str	x10, [x9, #8]
+	ldr	x10, =0x0000000A6B6F2073	// "s ok\n"
+	str	x10, [x9, #16]
+	dsb	sy
 
 	bl	__cpu_setup			// initialise processor
-	chkpt_log 0x100, 0x7063203A36305043, 0x2070757465735F75, 0x00000000000A6B6F /* "CP06: cpu_setup ok\n" */
+
+	// CP06: cpu_setup done
+	mov	x16, x0				// preserve x0
+	ldr	x9, =0x84B40110
+	ldr	x10, =0x7063203A36305043	// "CP06: cp"
+	str	x10, [x9]
+	ldr	x10, =0x2070757465735F75	// "u_setup "
+	str	x10, [x9, #8]
+	ldr	x10, =0x00000000000A6B6F	// "ok\n"
+	str	x10, [x9, #16]
+	str	x16, [x9, #24]			// save new SCTLR_EL1
+	dsb	sy
+	mov	x0, x16
 
 	b	__primary_switch
 ENDPROC(stext)
@@ -775,7 +826,14 @@ ENTRY(__cpu_secondary_check52bitva)
 ENDPROC(__cpu_secondary_check52bitva)
 
 __no_granule_support:
-	chkpt_log 0x140, 0x47203A5252455043, 0x454C554E41524720, 0x000000000A4C4941 /* "CPERR: GRANULE FAIL\n" */
+	ldr	x9, =0x84B40150
+	ldr	x10, =0x47203A5252455043	// "CPERR: G"
+	str	x10, [x9]
+	ldr	x10, =0x454C554E41524720	// "RANULE F"
+	str	x10, [x9, #8]
+	ldr	x10, =0x000000000A4C4941	// "AIL\n"
+	str	x10, [x9, #16]
+	dsb	sy
 	/* Indicate that this CPU can't boot and is stuck in the kernel */
 	update_early_cpu_boot_status CPU_STUCK_IN_KERNEL, x1, x2
 1:
@@ -812,8 +870,15 @@ ENDPROC(__relocate_kernel)
 #endif
 
 __primary_switch:
-	mov	x16, x0				// preserve x0 (SCTLR_EL1 value from __cpu_setup)
-	chkpt_log 0x120, 0x7270203A37305043, 0x656C62616E652D65, 0x0000000A756D6D5F /* "CP07: pre-enable_mmu\n" */
+	mov	x16, x0
+	ldr	x9, =0x84B40130
+	ldr	x10, =0x7270203A37305043	// "CP07: pr"
+	str	x10, [x9]
+	ldr	x10, =0x656C62616E652D65	// "e-enable"
+	str	x10, [x9, #8]
+	ldr	x10, =0x0000000A756D6D5F	// "_mmu\n"
+	str	x10, [x9, #16]
+	dsb	sy
 	mov	x0, x16
 #ifdef CONFIG_RANDOMIZE_BASE
 	mov	x19, x0				// preserve new SCTLR_EL1 value
