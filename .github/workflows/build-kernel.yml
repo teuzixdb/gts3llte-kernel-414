@@ -81,8 +81,23 @@ jobs:
             CC=clang CLANG_TRIPLE=aarch64-linux-gnu- \
             LD=ld.lld AR=llvm-ar NM=llvm-nm \
             OBJCOPY=llvm-objcopy STRIP=llvm-strip \
-            Image.gz-dtb 2>&1 | tee ../build.log
-          test -f out/arch/arm64/boot/Image.gz-dtb || (echo "Image.gz-dtb was not generated!" && exit 1)
+            Image.gz dtbs 2>&1 | tee ../build.log
+          test -f out/arch/arm64/boot/Image.gz || (echo "Image.gz was not generated!" && exit 1)
+          python3 -c '
+import pathlib
+img = pathlib.Path("out/arch/arm64/boot/Image.gz").read_bytes()
+pad = (4 - (len(img) % 4)) % 4
+out = bytearray(img + b"\x00" * pad)
+for name in ["r04", "r02", "r00", "r05"]:
+    p = pathlib.Path(f"out/arch/arm64/boot/dts/samsung/msm8996-sec-gts3llte-eur-kor-{name}.dtb")
+    if not p.exists():
+        raise FileNotFoundError(f"Missing DTB: {p}")
+    dtb = p.read_bytes()
+    print(f"Appending DTB {name}: {len(dtb)} bytes at offset {len(out)} (aligned: {len(out) % 4 == 0})")
+    out.extend(dtb)
+pathlib.Path("out/arch/arm64/boot/Image.gz-dtb").write_bytes(out)
+print(f"Generated Image.gz-dtb: {len(out)} bytes (Image.gz={len(img)}, pad={pad})")
+'
           ls -lh out/arch/arm64/boot/Image.gz-dtb
 
       - name: Show errors
