@@ -2201,9 +2201,7 @@
 	usb_otg_switch: usb-otg-switch {
 		compatible = "regulator-fixed";
 		regulator-name = "usb_otg_vreg";
-		vin-supply = <&smbcharger_external_otg>;
 		enable-active-high;
-		gpio = <&pmi8994_gpios 5 0>;
 		status = "disabled";
 	};
 
@@ -2232,16 +2230,7 @@
 	};
 };
 
-&pmi8994_charger {
-	otg-parent-supply = <&pmi8994_boost_5v>;
-	smbcharger_charger_otg: qcom,smbcharger-boost-otg {
-		regulator-name = "smbcharger_charger_otg";
-	};
 
-	smbcharger_external_otg: qcom,smbcharger-external-otg {
-		regulator-name = "smbcharger_external_otg";
-	};
-};
 
 /* Halo HL7509 external buck that powers VDD_GFX supply on 8996AU boards */
 &i2c_7 {
