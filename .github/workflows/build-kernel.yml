@@ -52,6 +52,11 @@ jobs:
             cp -r ../patches/drivers/. drivers/
             echo "Applied drivers patches"
           fi
+          if [ -d ../patches/arch/arm64/kernel ]; then
+            mkdir -p arch/arm64/kernel
+            cp -r ../patches/arch/arm64/kernel/. arch/arm64/kernel/
+            echo "Applied arch/arm64/kernel patches"
+          fi
           ln -sf ../drivers arch/drivers
           echo "All patches applied OK"
 
