@@ -92,6 +92,10 @@
 	};
 
 	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
 		framebuffer0: framebuffer@9a400000 {
 			compatible = "simple-framebuffer";
 			reg = <0x0 0x9a400000 0x0 0x00c00000>;
