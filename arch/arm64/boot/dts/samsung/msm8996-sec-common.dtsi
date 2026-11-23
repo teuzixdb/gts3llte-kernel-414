@@ -28,29 +28,21 @@
 
 		};
 
-		/* CONFIG_SEC_DEBUG reserves 8MB */
-		sec_debug_region: sec_debug_region@0 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x85000000 0x0 0x00800000>;
-		};
-
-		/* sec_debug_low_region reserves 4MB
-		   This region is reserved if only debuglevel low */
-		sec_debug_low_region: sec_debug_low_region@0 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x85000000 0x0 0x00400000>;
-		};
-
-		ramoops: ramoops@84b00000 {
+		ramoops: ramoops@85000000 {
 			compatible = "ramoops";
 			no-map;
-			reg = <0x0 0x84b00000 0x0 0x100000>;
+			reg = <0x0 0x85000000 0x0 0x100000>;
 			record-size = <0x40000>;
 			console-size = <0x40000>;
 			ftrace-size = <0x40000>;
 			pmsg-size = <0x40000>;
+		};
+
+		/* sec_debug_low_region reserves remaining 7MB */
+		sec_debug_low_region: sec_debug_low_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85100000 0x0 0x00700000>;
 		};
 		
 		ss_plog@84700000 {
@@ -88,6 +80,21 @@
 		qseecom_mem: qseecom_region {
 			reg = <0 0xFEC00000 0 0x1400000>;
 			label = "qseecom_mem";
+		};
+	};
+
+	chosen {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		framebuffer: framebuffer@9a400000 {
+			compatible = "simple-framebuffer";
+			reg = <0x0 0x9a400000 0x0 0x00c00000>;
+			width = <2048>;
+			height = <1536>;
+			stride = <8192>;
+			format = "a8r8g8b8";
 		};
 	};
 };
