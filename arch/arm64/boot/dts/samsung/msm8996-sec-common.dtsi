@@ -35,17 +35,18 @@
 			reg = <0x0 0x85000000 0x0 0x00800000>;
 		};
 
-		/* sec_debug_low_region reserves 3MB after ramoops */
+		/* sec_debug_low_region reserves 4MB */
 		sec_debug_low_region: sec_debug_low_region@0 {
 			compatible = "removed-dma-pool";
 			no-map;
-			reg = <0x0 0x85100000 0x0 0x00300000>;
+			reg = <0x0 0x85000000 0x0 0x00400000>;
 		};
 
-		ramoops: ramoops@85000000 {
+		/* Ramoops at 0x84b00000 matches TWRP recovery pstore reader (mem_address=2226126848) */
+		ramoops: ramoops@84b00000 {
 			compatible = "ramoops";
 			no-map;
-			reg = <0x0 0x85000000 0x0 0x100000>;
+			reg = <0x0 0x84b00000 0x0 0x100000>;
 			record-size = <0x40000>;
 			console-size = <0x40000>;
 			ftrace-size = <0x40000>;
@@ -90,19 +91,13 @@
 		};
 	};
 
-	chosen {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		framebuffer: framebuffer@9a400000 {
-			compatible = "simple-framebuffer";
-			reg = <0x0 0x9a400000 0x0 0x00c00000>;
-			width = <2048>;
-			height = <1536>;
-			stride = <8192>;
-			format = "a8r8g8b8";
-		};
+	framebuffer: framebuffer@9a400000 {
+		compatible = "simple-framebuffer";
+		reg = <0x0 0x9a400000 0x0 0x00c00000>;
+		width = <2048>;
+		height = <1536>;
+		stride = <8192>;
+		format = "a8r8g8b8";
 	};
 };
 
