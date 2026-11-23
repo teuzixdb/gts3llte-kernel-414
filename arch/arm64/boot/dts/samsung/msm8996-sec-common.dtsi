@@ -91,17 +91,20 @@
 		};
 	};
 
-	framebuffer: framebuffer@9a400000 {
-		compatible = "simple-framebuffer";
-		reg = <0x0 0x9a400000 0x0 0x00c00000>;
-		width = <2048>;
-		height = <1536>;
-		stride = <8192>;
-		format = "a8r8g8b8";
+	chosen {
+		framebuffer0: framebuffer@9a400000 {
+			compatible = "simple-framebuffer";
+			reg = <0x0 0x9a400000 0x0 0x00c00000>;
+			width = <2048>;
+			height = <1536>;
+			stride = <8192>;
+			format = "a8b8g8r8";
+		};
 	};
 };
 
 &cont_splash_mem {
+	no-map;
 	reg = <0 0x9A400000 0 0x01C00000>;
 	label = "cont_splash_mem";
 };
