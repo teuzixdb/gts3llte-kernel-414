@@ -28,6 +28,20 @@
 
 		};
 
+		/* CONFIG_SEC_DEBUG reserves 8MB - MANDATORY for Samsung ABOOT (aboot.c:1533 asserts if missing) */
+		sec_debug_region: sec_debug_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85000000 0x0 0x00800000>;
+		};
+
+		/* sec_debug_low_region reserves 3MB after ramoops */
+		sec_debug_low_region: sec_debug_low_region@0 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x85100000 0x0 0x00300000>;
+		};
+
 		ramoops: ramoops@85000000 {
 			compatible = "ramoops";
 			no-map;
@@ -36,13 +50,6 @@
 			console-size = <0x40000>;
 			ftrace-size = <0x40000>;
 			pmsg-size = <0x40000>;
-		};
-
-		/* sec_debug_low_region reserves remaining 7MB */
-		sec_debug_low_region: sec_debug_low_region@0 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x85100000 0x0 0x00700000>;
 		};
 		
 		ss_plog@84700000 {
